@@ -1,33 +1,23 @@
 package Server;
 
 public class User {
-    private String userName;
+    private String username;
     private String password;
     private boolean admin;
+    private boolean covid;
     private int localx;
     private int localy;
 
-    public User(String userName, String password, int localx, int localy) {
-        this.userName = userName;
+    public User(String username, String password, int localx, int localy) {
+        this.username = username;
         this.password = password;
         this.localx = localx;
         this.localy = localy;
+        this.covid = false;
     }
 
-    public String getUserName() {
-        return userName;
-    }
-
-    public void setUserName(String userName) {
-        this.userName = userName;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
+    public String getUsername() {
+        return username;
     }
 
     public int getLocalx() {
@@ -44,6 +34,14 @@ public class User {
 
     public void setLocaly(int localy) {
         this.localy = localy;
+    }
+
+    public boolean isCovid() {
+        return covid;
+    }
+
+    public void setCovid(boolean covid) {
+        this.covid = covid;
     }
 
     public boolean validateCredentials(String password) {
