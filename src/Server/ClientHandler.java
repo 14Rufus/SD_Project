@@ -10,25 +10,26 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Map;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class ClientHandler implements Runnable {
     private Map<String, User> users;
-    private Socket socket;
     private ReentrantReadWriteLock l;
     private Lock rl;
     private Lock wl;
+    private Condition con;
     private BufferedReader in;
     private PrintWriter out;
     private String user;
 
     public ClientHandler(Map<String, User> users, Socket socket) throws IOException {
         this.users = users;
-        this.socket = socket;
         this.l = new ReentrantReadWriteLock();
         this.rl = l.readLock();
         this.wl = l.writeLock();
+        this.con = wl.newCondition();
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.out = new PrintWriter(socket.getOutputStream());
         this.user = null;
@@ -89,8 +90,14 @@ public class ClientHandler implements Runnable {
         wl.lock();
         try {
             User u = users.get(user);
+            int oldLocalX = u.getLocalx();
+            int oldLocalY = u.getLocaly();
+
             u.setLocalx(localX);
             u.setLocaly(localY);
+
+            if(users.values().stream().noneMatch(us -> us.getLocalx() == oldLocalX && us.getLocaly() == oldLocalY))
+                con.signalAll();
         } finally {
             wl.unlock();
         }
@@ -109,7 +116,23 @@ public class ClientHandler implements Runnable {
     }
 
     private void interpreter_3() {
+        int localX = lerInt(0, 10, "Introduza a coordenada latitudinal desejada (0 a 10): ");
+        int localY = lerInt(0, 10, "Introduza a coordenada longitudinal desejada (0 a 10): ");
 
+        Runnable worker = () -> {
+            wl.lock();
+            try {
+                while(users.values().stream().noneMatch(u -> u.getLocalx() == localX && u.getLocaly() == localY && !u.getUsername().equals(user)))
+                    con.await();
+                printClient("O local está vazio");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                wl.unlock();
+            }
+        };
+
+        new Thread(worker).start();
     }
 
     private void interpreter_4() {
@@ -183,7 +206,7 @@ public class ClientHandler implements Runnable {
             if (users.get(username) != null)
                 throw new UserAlreadyExistsException("O utilizador já existe");
 
-            users.put(username, new User(username, password, localX, localY));
+            users.put(username, new User(username, password,false, localX, localY));
         } finally {
             wl.unlock();
         }

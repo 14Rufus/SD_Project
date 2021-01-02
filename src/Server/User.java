@@ -8,9 +8,10 @@ public class User {
     private int localx;
     private int localy;
 
-    public User(String username, String password, int localx, int localy) {
+    public User(String username, String password, boolean admin, int localx, int localy) {
         this.username = username;
         this.password = password;
+        this.admin = admin;
         this.localx = localx;
         this.localy = localy;
         this.covid = false;
