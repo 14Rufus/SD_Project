@@ -14,7 +14,7 @@ public class User {
     private Set<String> contacts;
     private boolean[][] locals;
 
-    public User(String username, String password, boolean admin, int localx, int localy) {
+    public User(String username, String password, boolean admin, int localx, int localy, int N) {
         this.username = username;
         this.password = password;
         this.admin = admin;
@@ -22,8 +22,8 @@ public class User {
         this.localy = localy;
         this.covid = false;
         this.contacts = new TreeSet<>();
-        this.locals = new boolean[10][10];
-        this.locals[localx][localy] = true;
+        this.locals = new boolean[N][N];
+        this.locals[N][N] = true;
     }
 
     public String getUsername() {

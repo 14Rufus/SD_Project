@@ -16,6 +16,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 public class ClientHandler implements Runnable {
+    private static final int N = 10;
     private Map<String, User> users;
     private ReentrantLock l;
     private Condition notEmpty;
@@ -118,8 +119,8 @@ public class ClientHandler implements Runnable {
     }
 
     private void interpreter_1() {
-        int localX = lerInt(0, 10, "Introduza a sua coordenada latitudinal (0 a 10): ");
-        int localY = lerInt(0, 10, "Introduza a sua coordenada longitudinal (0 a 10): ");
+        int localX = lerInt(0, N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
+        int localY = lerInt(0, N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
 
         l.lock();
         try {
@@ -149,8 +150,8 @@ public class ClientHandler implements Runnable {
     }
 
     private int interpreter_2() {
-        int localX = lerInt(0, 10, "Introduza a coordenada latitudinal desejada (0 a 10): ");
-        int localY = lerInt(0, 10, "Introduza a coordenada longitudinal desejada (0 a 10): ");
+        int localX = lerInt(0, N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
+        int localY = lerInt(0, N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
 
         l.lock();
         try {
@@ -161,8 +162,8 @@ public class ClientHandler implements Runnable {
     }
 
     private void interpreter_3() {
-        int localX = lerInt(0, 9, "Introduza a coordenada latitudinal desejada (0 a 9): ");
-        int localY = lerInt(0, 9, "Introduza a coordenada longitudinal desejada (0 a 9): ");
+        int localX = lerInt(0, N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
+        int localY = lerInt(0, N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
 
         Runnable emptyPlaceHandler = () -> {
             l.lock();
@@ -196,14 +197,14 @@ public class ClientHandler implements Runnable {
     }
 
     private void interpreter_5() {
-        int[][] usrs = new int[10][10];
-        int[][] contaminated = new int[10][10];
+        int[][] usrs = new int[N][N];
+        int[][] contaminated = new int[N][N];
 
         l.lock();
         try {
             for(User u: users.values())
-                for(int i=0; i<10; i++)
-                    for(int j=0; j<10; j++)
+                for(int i=0; i<N; i++)
+                    for(int j=0; j<N; j++)
                         if(u.getLocal(i, j)) {
                             usrs[i][j]++;
                             if(u.isCovid())
@@ -213,8 +214,8 @@ public class ClientHandler implements Runnable {
             l.unlock();
         }
 
-        for(int i=0; i<10; i++)
-            for(int j=0; j<10; j++)
+        for(int i=0; i<N; i++)
+            for(int j=0; j<N; j++)
                 printClient("Localização " + i + " " + j + ": " + contaminated[i][j] + "/" + usrs[i][j]  + "(Contaminated/Users)");
     }
 
@@ -269,15 +270,15 @@ public class ClientHandler implements Runnable {
     private void interpreter_register() throws IOException, UserAlreadyExistsException {
         String username = lerString("Introduza o nome de utilizador: ");
         String password = lerString("Introduza a palavra pass: ");
-        int localX = lerInt(0, 10, "Introduza a sua coordenada latitudinal (0 a 10): ");
-        int localY = lerInt(0, 10, "Introduza a sua coordenada longitudinal (0 a 10): ");
+        int localX = lerInt(0, N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
+        int localY = lerInt(0, N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
 
         l.lock();
         try {
             if (users.get(username) != null)
                 throw new UserAlreadyExistsException("O utilizador já existe");
 
-            users.put(username, new User(username, password,false, localX, localY));
+            users.put(username, new User(username, password,false, localX, localY, N));
             update_contacts(localX, localY);
         } finally {
             l.unlock();
