@@ -1,5 +1,9 @@
 package Server;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
 public class User {
     private String username;
     private String password;
@@ -7,6 +11,8 @@ public class User {
     private boolean covid;
     private int localx;
     private int localy;
+    private Set<String> contacts;
+    private boolean[][] locals;
 
     public User(String username, String password, boolean admin, int localx, int localy) {
         this.username = username;
@@ -15,6 +21,9 @@ public class User {
         this.localx = localx;
         this.localy = localy;
         this.covid = false;
+        this.contacts = new TreeSet<>();
+        this.locals = new boolean[10][10];
+        this.locals[localx][localy] = true;
     }
 
     public String getUsername() {
@@ -25,27 +34,38 @@ public class User {
         return localx;
     }
 
-    public void setLocalx(int localx) {
-        this.localx = localx;
-    }
-
     public int getLocaly() {
         return localy;
     }
 
-    public void setLocaly(int localy) {
+    public void setLocal(int localx, int localy) {
+        this.localx = localx;
         this.localy = localy;
+
+        this.locals[localx][localy] = true;
     }
 
-    public boolean isCovid() {
-        return covid;
+    public boolean isAdmin() {
+        return admin;
     }
 
     public void setCovid(boolean covid) {
         this.covid = covid;
     }
 
+    public boolean isCovid() {
+        return covid;
+    }
+
     public boolean validateCredentials(String password) {
         return this.password.equals(password);
+    }
+
+    public void addContact(String contact) {
+        contacts.add(contact);
+    }
+
+    public boolean getLocal(int localx, int localy) {
+        return locals[localx][localy];
     }
 }
