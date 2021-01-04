@@ -3,16 +3,16 @@ package Server;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 public class ContactHandler implements Runnable {
     private User user;
     private Map<String, User> users;
-    private ReentrantLock l;
+    private Lock l;
     private Condition update;
 
-    public ContactHandler(User user, Map<String, User> users, ReentrantLock l) {
+    public ContactHandler(User user, Map<String, User> users, Lock l) {
         this.user = user;
         this.users = users;
         this.l = l;

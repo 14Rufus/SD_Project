@@ -10,50 +10,49 @@ import java.net.Socket;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
 public class ClientHandler implements Runnable {
     private static final int N = 10;
     private Map<String, User> users;
-    private ReentrantLock l;
+    private Socket socket;
+    private Lock rl;
+    private Lock wl;
     private Condition notEmpty;
     private Condition covidDanger;
     private DataInputStream in;
     private DataOutputStream out;
     private User user;
 
-    public ClientHandler(Map<String, User> users, Socket socket, ReentrantLock l, Condition notEmpty, Condition covidDanger) throws IOException {
+    public ClientHandler(Map<String, User> users, Socket socket, Lock rl, Lock wl, Condition notEmpty, Condition covidDanger) throws IOException {
         this.users = users;
-        this.l = l;
+        this.rl = rl;
+        this.wl = wl;
+        this.socket = socket;
         this.notEmpty = notEmpty;
         this.covidDanger = covidDanger;
-        this.in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
-        this.out = new DataOutputStream(socket.getOutputStream());
+        this.in = new DataInputStream(new BufferedInputStream(this.socket.getInputStream()));
+        this.out = new DataOutputStream(this.socket.getOutputStream());
         this.user = null;
     }
 
     public void run() {
         try {
-            interpreter_initial();
+            int flag = interpreter_initial();
 
-            Thread contact = new Thread(new ContactHandler(user, users, l));
-            Thread danger = new Thread(new DangerHandler(user, users, l, covidDanger, out));
-            contact.start();
-            danger.start();
+            if(flag==1) {
+                Thread contact = new Thread(new ContactHandler(user, users, wl));
+                Thread danger = new Thread(new DangerHandler(user, users, wl, covidDanger, out));
+                contact.start();
+                danger.start();
 
-            //TEMP
-            l.lock();
-            try {
-                update_contacts();
-            } finally {
-                l.unlock();
+                interpreter_menu();
             }
-
-            interpreter_menu();
-
             in.close();
             out.close();
+
+            socket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -64,20 +63,28 @@ public class ClientHandler implements Runnable {
         boolean admin = user.isAdmin();
         String options;
         if(admin) {
-            options = "\n 1 | Atualizar Localização" +
-                             "\n 2 | Numero de pessoas numa localização" +
-                             "\n 3 | Pedir para informar sobre um local" +
-                             "\n 4 | Comunicar que está doente" +
-                             "\n 5 | Mapa de Localizações" +
-                             "\n 0 | Sair" +
-                             "\nEscolha uma opção: ";
+            options =   "\n----------------------------------------" +
+                        "\n               Menu Admin" +
+                        "\n----------------------------------------" +
+                        "\n 1 | Atualizar Localização" +
+                        "\n 2 | Numero de pessoas numa localização" +
+                        "\n 3 | Pedir para informar sobre um local" +
+                        "\n 4 | Comunicar que está doente" +
+                        "\n 5 | Mapa de Localizações" +
+                        "\n 0 | Sair" +
+                        "\n----------------------------------------" +
+                        "\nEscolha uma opção: ";
         } else {
-            options = "\n 1 | Atualizar Localização" +
-                    "\n 2 | Numero de pessoas numa localização" +
-                    "\n 3 | Pedir para informar sobre um local" +
-                    "\n 4 | Comunicar que está doente" +
-                    "\n 0 | Sair" +
-                    "\nEscolha uma opção: ";
+            options =   "\n----------------------------------------" +
+                        "\n            Menu Utilizador" +
+                        "\n----------------------------------------" +
+                        "\n 1 | Atualizar Localização" +
+                        "\n 2 | Numero de pessoas numa localização" +
+                        "\n 3 | Pedir para informar sobre um local" +
+                        "\n 4 | Comunicar que está doente" +
+                        "\n 0 | Sair" +
+                        "\n----------------------------------------" +
+                        "\nEscolha uma opção: ";
         }
 
         while(flag) {
@@ -122,7 +129,7 @@ public class ClientHandler implements Runnable {
         int localX = lerInt(0, N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
         int localY = lerInt(0, N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
 
-        l.lock();
+        wl.lock();
         try {
             int oldLocalX = user.getLocalx();
             int oldLocalY = user.getLocaly();
@@ -137,7 +144,7 @@ public class ClientHandler implements Runnable {
             if(users.values().stream().noneMatch(us -> us.getLocalx() == oldLocalX && us.getLocaly() == oldLocalY))
                 notEmpty.signalAll();
         } finally {
-            l.unlock();
+            wl.unlock();
         }
     }
 
@@ -145,11 +152,11 @@ public class ClientHandler implements Runnable {
         int localX = lerInt(0, N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
         int localY = lerInt(0, N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
 
-        l.lock();
+        rl.lock();
         try {
             return (int) users.values().stream().filter(u -> u.getLocalx() == localX && u.getLocaly() == localY).count();
         } finally {
-            l.unlock();
+            rl.unlock();
         }
     }
 
@@ -158,16 +165,18 @@ public class ClientHandler implements Runnable {
         int localY = lerInt(0, N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
 
         Runnable emptyPlaceHandler = () -> {
-            l.lock();
+            wl.lock();
             try {
                 while(users.values().stream().anyMatch(u -> u.getLocalx() == localX && u.getLocaly() == localY))
                     notEmpty.await();
 
-                printClient("** O LOCAL " + localX + " " + localY + " ESTÁ VAZIO **");
+                printClient("\n----------------------" +
+                            "\nO local " + localX + " " + localY + " está vazio" +
+                            "\n----------------------");
             } catch (InterruptedException | IOException e) {
                 e.printStackTrace();
             } finally {
-                l.unlock();
+                wl.unlock();
             }
         };
 
@@ -177,14 +186,14 @@ public class ClientHandler implements Runnable {
     private void interpreter_4() throws IOException {
         int res = lerInt(0, 1, "Está com Covid19? (0-Não/ 1-Sim)");
 
-        l.lock();
+        wl.lock();
         try {
             if (res == 1) {
                 user.setCovid(true);
                 covidDanger.signalAll();
             }
         } finally {
-            l.unlock();
+            wl.unlock();
         }
     }
 
@@ -192,7 +201,7 @@ public class ClientHandler implements Runnable {
         int[][] usrs = new int[N][N];
         int[][] contaminated = new int[N][N];
 
-        l.lock();
+        rl.lock();
         try {
             for(User u: users.values())
                 for(int i=0; i<N; i++)
@@ -203,7 +212,7 @@ public class ClientHandler implements Runnable {
                                 contaminated[i][j]++;
                         }
         } finally {
-            l.unlock();
+            rl.unlock();
         }
 
         for(int i=0; i<N; i++)
@@ -211,20 +220,25 @@ public class ClientHandler implements Runnable {
                 printClient("Localização " + i + " " + j + ": " + contaminated[i][j] + "/" + usrs[i][j]  + "(Contaminated/Users)");
     }
 
-    private void interpreter_initial() throws IOException {
-        boolean flag = true;
-        String options = "\n 1 | Login" +
-                         "\n 2 | Registar" +
-                         "\nEscolha uma opção: ";
+    private int interpreter_initial() throws IOException {
+        int flag = 0; // 0-not log 1-log 2-exit
+        String options =    "\n-------------------" +
+                            "\n     Menu Login" +
+                            "\n-------------------" +
+                            "\n 1 | Login" +
+                            "\n 2 | Registar" +
+                            "\n 0 | Sair" +
+                            "\n-------------------" +
+                            "\nEscolha uma opção: ";
 
-        while(flag) {
-            int option = lerInt(1, 2, options);
+        while(flag==0) {
+            int option = lerInt(0, 2, options);
 
             switch (option) {
                 case 1:
                     try {
                         interpreter_login();
-                        flag = false;
+                        flag = 1;
                         printClient("Autenticado com sucesso");
                     } catch (UserDoesntExistException | WrongPasswordException e) {
                         printClient(e.getMessage());
@@ -238,15 +252,20 @@ public class ClientHandler implements Runnable {
                         printClient(e.getMessage());
                     }
                     break;
+                case 0:
+                    flag=2;
+                    break;
             }
         }
+
+        return flag;
     }
 
     private void interpreter_login() throws IOException, UserDoesntExistException, WrongPasswordException {
         String username = lerString("Introduza o nome de utilizador: ");
         String password = lerString("Introduza a palavra pass: ");
 
-        l.lock();
+        rl.lock();
         try {
             if (users.get(username) == null)
                 throw new UserDoesntExistException("O utilizador não existe");
@@ -255,7 +274,7 @@ public class ClientHandler implements Runnable {
 
             this.user = users.get(username);
         } finally {
-            l.unlock();
+            rl.unlock();
         }
     }
 
@@ -265,14 +284,15 @@ public class ClientHandler implements Runnable {
         int localX = lerInt(0, N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
         int localY = lerInt(0, N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
 
-        l.lock();
+        wl.lock();
         try {
             if (users.get(username) != null)
                 throw new UserAlreadyExistsException("O utilizador já existe");
 
-            users.put(username, new User(username, password,false, localX, localY, N, l.newCondition()));
+            users.put(username, new User(username, password,false, localX, localY, N, wl.newCondition()));
+            update_contacts();
         } finally {
-            l.unlock();
+            wl.unlock();
         }
     }
 
@@ -280,7 +300,7 @@ public class ClientHandler implements Runnable {
         Set<User> people = users.values().stream().filter(us -> us.getLocalx() == user.getLocalx() && us.getLocaly() == user.getLocalx()).collect(Collectors.toSet());
 
         for (User us : people) {
-            us.getContactCon().signalAll();
+            us.getContactCon().signal();
         }
     }
 

@@ -1,5 +1,6 @@
 package Server;
 
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.locks.Condition;
@@ -23,6 +24,20 @@ public class User {
         this.localy = localy;
         this.covid = false;
         this.contacts = new TreeSet<>();
+        this.locals = new boolean[N][N];
+        this.locals[localx][localy] = true;
+        this.contactCon = contactCon;
+    }
+
+    public User(String username, String password, boolean admin, int localx, int localy, int N, List<String> contacts, Condition contactCon) {
+        this.username = username;
+        this.password = password;
+        this.admin = admin;
+        this.localx = localx;
+        this.localy = localy;
+        this.covid = false;
+        this.contacts = new TreeSet<>();
+        this.contacts.addAll(contacts);
         this.locals = new boolean[N][N];
         this.locals[localx][localy] = true;
         this.contactCon = contactCon;

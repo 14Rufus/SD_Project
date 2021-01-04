@@ -6,10 +6,12 @@ import java.net.Socket;
 public class Writer implements Runnable {
     private BufferedReader in;
     private DataOutputStream out;
+    private Socket socket;
 
     public Writer(Socket socket) throws IOException {
         this.in = new BufferedReader(new InputStreamReader(System.in));
         this.out = new DataOutputStream(socket.getOutputStream());
+        this.socket = socket;
     }
 
     public void run() {
@@ -22,6 +24,7 @@ public class Writer implements Runnable {
 
             in.close();
             out.close();
+            socket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
