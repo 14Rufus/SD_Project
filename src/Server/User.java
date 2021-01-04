@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class User {
     private String username;
@@ -13,10 +14,11 @@ public class User {
     private int localx;
     private int localy;
     private boolean[][] locals;
+    private ReentrantLock lock;
     private Condition contactCon;
     private Set<String> contacts;
 
-    public User(String username, String password, boolean admin, int localx, int localy, int N, Condition contactCon) {
+    public User(String username, String password, boolean admin, int localx, int localy, int N) {
         this.username = username;
         this.password = password;
         this.admin = admin;
@@ -26,10 +28,11 @@ public class User {
         this.contacts = new TreeSet<>();
         this.locals = new boolean[N][N];
         this.locals[localx][localy] = true;
-        this.contactCon = contactCon;
+        this.lock = new ReentrantLock();
+        this.contactCon = lock.newCondition();
     }
 
-    public User(String username, String password, boolean admin, int localx, int localy, int N, List<String> contacts, Condition contactCon) {
+    public User(String username, String password, boolean admin, int localx, int localy, int N, List<String> contacts) {
         this.username = username;
         this.password = password;
         this.admin = admin;
@@ -40,7 +43,8 @@ public class User {
         this.contacts.addAll(contacts);
         this.locals = new boolean[N][N];
         this.locals[localx][localy] = true;
-        this.contactCon = contactCon;
+        this.lock = new ReentrantLock();
+        this.contactCon = lock.newCondition();
     }
 
     public String getUsername() {
@@ -96,5 +100,9 @@ public class User {
 
     public Condition getContactCon() {
         return contactCon;
+    }
+
+    public ReentrantLock getLock() {
+        return lock;
     }
 }

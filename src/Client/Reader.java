@@ -4,9 +4,11 @@ import java.io.*;
 import java.net.Socket;
 
 public class Reader implements Runnable {
+    private Socket socket;
     private DataInputStream in;
 
     public Reader(Socket socket) throws IOException {
+        this.socket = socket;
         this.in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
     }
 
@@ -17,8 +19,7 @@ public class Reader implements Runnable {
                 System.out.println(line);
 
             in.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+            socket.close();
+        } catch (IOException ignored) {}
     }
 }

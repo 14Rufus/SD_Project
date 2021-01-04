@@ -9,20 +9,20 @@ import java.util.concurrent.locks.Lock;
 public class DangerHandler implements Runnable {
     private User user;
     private Map<String, User> users;
-    private Lock l;
+    private Lock wl;
     private Condition danger;
     private DataOutputStream out;
 
-    public DangerHandler(User user, Map<String, User> users, Lock l, Condition danger, DataOutputStream out) {
+    public DangerHandler(User user, Map<String, User> users, Lock wl, Condition danger, DataOutputStream out) {
         this.user = user;
         this.users = users;
-        this.l = l;
+        this.wl = wl;
         this.danger = danger;
         this.out = out;
     }
 
     public void run() {
-        l.lock();
+        wl.lock();
         try {
             while(true) {
                 boolean onHold = true;
@@ -45,7 +45,7 @@ public class DangerHandler implements Runnable {
         } catch (InterruptedException | IOException e) {
             e.printStackTrace();
         } finally {
-            l.unlock();
+            wl.unlock();
         }
     }
 }
