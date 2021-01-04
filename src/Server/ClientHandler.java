@@ -1,13 +1,11 @@
 package Server;
 
+import Exceptions.CurrentLocationException;
 import Exceptions.UserAlreadyExistsException;
 import Exceptions.UserDoesntExistException;
 import Exceptions.WrongPasswordException;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +19,8 @@ public class ClientHandler implements Runnable {
     private ReentrantLock l;
     private Condition notEmpty;
     private Condition contact;
-    private BufferedReader in;
-    private PrintWriter out;
+    private DataInputStream in;
+    private DataOutputStream out;
     private String user;
 
     public ClientHandler(Map<String, User> users, Socket socket, ReentrantLock l, Condition notEmpty, Condition contact) throws IOException {
@@ -30,28 +28,13 @@ public class ClientHandler implements Runnable {
         this.l = l;
         this.notEmpty = notEmpty;
         this.contact = contact;
-        this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        this.out = new PrintWriter(socket.getOutputStream());
+        this.in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+        this.out = new DataOutputStream(socket.getOutputStream());
         this.user = null;
     }
 
     public void run() {
         try {
-            Runnable contactHandler = () -> {
-                l.lock();
-                try {
-                    while(true) {
-                        contact.await();
-                        printClient("Esteve em contacto com um doente contaminado com covid-19");
-                    }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } finally {
-                    l.unlock();
-                }
-            };
-            new Thread(contactHandler).start();
-
             interpreter_initial();
 
             interpreter_menu();
@@ -63,7 +46,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void interpreter_menu() {
+    private void interpreter_menu() throws IOException {
         boolean flag = true;
         boolean admin = users.get(user).isAdmin();
         String options;
@@ -93,8 +76,12 @@ public class ClientHandler implements Runnable {
 
             switch(option) {
                 case 1:
-                    interpreter_1();
-                    printClient("Atualizado com sucesso");
+                    try {
+                        interpreter_1();
+                        printClient("Atualizado com sucesso");
+                    } catch (CurrentLocationException e) {
+                        printClient(e.getMessage());
+                    }
                     break;
                 case 2:
                     int res = interpreter_2();
@@ -118,7 +105,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void interpreter_1() {
+    private void interpreter_1() throws IOException, CurrentLocationException {
         int localX = lerInt(0, N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
         int localY = lerInt(0, N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
 
@@ -127,6 +114,9 @@ public class ClientHandler implements Runnable {
             User u = users.get(user);
             int oldLocalX = u.getLocalx();
             int oldLocalY = u.getLocaly();
+
+            if(oldLocalX==localX && oldLocalY==localY)
+                throw new CurrentLocationException("Esta é a sua localização atual");
 
             u.setLocal(localX, localY);
 
@@ -149,7 +139,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private int interpreter_2() {
+    private int interpreter_2() throws IOException {
         int localX = lerInt(0, N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
         int localY = lerInt(0, N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
 
@@ -161,7 +151,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void interpreter_3() {
+    private void interpreter_3() throws IOException {
         int localX = lerInt(0, N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
         int localY = lerInt(0, N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
 
@@ -172,7 +162,7 @@ public class ClientHandler implements Runnable {
                     notEmpty.await();
 
                 printClient("** O LOCAL " + localX + " " + localY + " ESTÁ VAZIO **");
-            } catch (InterruptedException e) {
+            } catch (InterruptedException | IOException e) {
                 e.printStackTrace();
             } finally {
                 l.unlock();
@@ -182,21 +172,22 @@ public class ClientHandler implements Runnable {
         new Thread(emptyPlaceHandler).start();
     }
 
-    private void interpreter_4() {
+    private void interpreter_4() throws IOException {
         int res = lerInt(0, 1, "Está com Covid19? (0-Não/ 1-Sim)");
 
         l.lock();
         try {
             if (res == 1) {
                 users.get(user).setCovid(true);
-                //contact.signalAll();
+
+                contact.signalAll();
             }
         } finally {
             l.unlock();
         }
     }
 
-    private void interpreter_5() {
+    private void interpreter_5() throws IOException {
         int[][] usrs = new int[N][N];
         int[][] contaminated = new int[N][N];
 
@@ -288,24 +279,21 @@ public class ClientHandler implements Runnable {
     private String lerString(String message) throws IOException {
         String line;
 
-        do{
-            printClient(message);
+        printClient(message);
 
-            line = in.readLine();
-        } while (line == null);
+        line = in.readUTF();
 
         return line;
     }
 
-    private int lerInt(int min, int max, String message){
+    private int lerInt(int min, int max, String message) throws IOException {
         int n;
 
         do{
             printClient(message);
 
             try {
-                String line = in.readLine();
-                n = Integer.parseInt(line);
+                n = Integer.parseInt(in.readUTF());
             } catch (NumberFormatException | IOException nfe) {
                 n = -1;
             }
@@ -314,8 +302,8 @@ public class ClientHandler implements Runnable {
         return n;
     }
 
-    private void printClient(String message) {
-        out.println(message);
+    private void printClient(String message) throws IOException {
+        out.writeUTF(message);
         out.flush();
     }
 }

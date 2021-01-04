@@ -1,6 +1,5 @@
 package Server;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -11,8 +10,8 @@ public class User {
     private boolean covid;
     private int localx;
     private int localy;
-    private Set<String> contacts;
     private boolean[][] locals;
+    private Set<String> contacts;
 
     public User(String username, String password, boolean admin, int localx, int localy, int N) {
         this.username = username;
@@ -23,7 +22,7 @@ public class User {
         this.covid = false;
         this.contacts = new TreeSet<>();
         this.locals = new boolean[N][N];
-        this.locals[N][N] = true;
+        this.locals[localx][localy] = true;
     }
 
     public String getUsername() {
