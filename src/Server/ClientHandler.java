@@ -7,8 +7,8 @@ import Exceptions.WrongPasswordException;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -18,16 +18,16 @@ public class ClientHandler implements Runnable {
     private Map<String, User> users;
     private ReentrantLock l;
     private Condition notEmpty;
-    private Condition contact;
+    private Condition covidDanger;
     private DataInputStream in;
     private DataOutputStream out;
-    private String user;
+    private User user;
 
-    public ClientHandler(Map<String, User> users, Socket socket, ReentrantLock l, Condition notEmpty, Condition contact) throws IOException {
+    public ClientHandler(Map<String, User> users, Socket socket, ReentrantLock l, Condition notEmpty, Condition covidDanger) throws IOException {
         this.users = users;
         this.l = l;
         this.notEmpty = notEmpty;
-        this.contact = contact;
+        this.covidDanger = covidDanger;
         this.in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
         this.out = new DataOutputStream(socket.getOutputStream());
         this.user = null;
@@ -36,6 +36,19 @@ public class ClientHandler implements Runnable {
     public void run() {
         try {
             interpreter_initial();
+
+            Thread contact = new Thread(new ContactHandler(user, users, l));
+            Thread danger = new Thread(new DangerHandler(user, users, l, covidDanger, out));
+            contact.start();
+            danger.start();
+
+            //TEMP
+            l.lock();
+            try {
+                update_contacts();
+            } finally {
+                l.unlock();
+            }
 
             interpreter_menu();
 
@@ -48,7 +61,7 @@ public class ClientHandler implements Runnable {
 
     private void interpreter_menu() throws IOException {
         boolean flag = true;
-        boolean admin = users.get(user).isAdmin();
+        boolean admin = user.isAdmin();
         String options;
         if(admin) {
             options = "\n 1 | Atualizar Localização" +
@@ -111,31 +124,20 @@ public class ClientHandler implements Runnable {
 
         l.lock();
         try {
-            User u = users.get(user);
-            int oldLocalX = u.getLocalx();
-            int oldLocalY = u.getLocaly();
+            int oldLocalX = user.getLocalx();
+            int oldLocalY = user.getLocaly();
 
             if(oldLocalX==localX && oldLocalY==localY)
                 throw new CurrentLocationException("Esta é a sua localização atual");
 
-            u.setLocal(localX, localY);
+            user.setLocal(localX, localY);
 
-            update_contacts(localX, localY);
+            update_contacts();
 
             if(users.values().stream().noneMatch(us -> us.getLocalx() == oldLocalX && us.getLocaly() == oldLocalY))
                 notEmpty.signalAll();
         } finally {
             l.unlock();
-        }
-    }
-
-    private void update_contacts(int localX, int localY) {
-        List<String> contacts = users.values().stream().filter(us -> us.getLocalx() == localX && us.getLocaly() == localY)
-                                                       .map(u -> u.getUsername()).collect(Collectors.toList());
-
-        for(String u : contacts) {
-            users.get(u).addContact(user);
-            users.get(user).addContact(u);
         }
     }
 
@@ -178,9 +180,8 @@ public class ClientHandler implements Runnable {
         l.lock();
         try {
             if (res == 1) {
-                users.get(user).setCovid(true);
-
-                contact.signalAll();
+                user.setCovid(true);
+                covidDanger.signalAll();
             }
         } finally {
             l.unlock();
@@ -252,7 +253,7 @@ public class ClientHandler implements Runnable {
             else if(!users.get(username).validateCredentials(password))
                 throw new WrongPasswordException("Palavra Pass errada");
 
-            this.user = username;
+            this.user = users.get(username);
         } finally {
             l.unlock();
         }
@@ -269,10 +270,17 @@ public class ClientHandler implements Runnable {
             if (users.get(username) != null)
                 throw new UserAlreadyExistsException("O utilizador já existe");
 
-            users.put(username, new User(username, password,false, localX, localY, N));
-            update_contacts(localX, localY);
+            users.put(username, new User(username, password,false, localX, localY, N, l.newCondition()));
         } finally {
             l.unlock();
+        }
+    }
+
+    private void update_contacts() {
+        Set<User> people = users.values().stream().filter(us -> us.getLocalx() == user.getLocalx() && us.getLocaly() == user.getLocalx()).collect(Collectors.toSet());
+
+        for (User us : people) {
+            us.getContactCon().signalAll();
         }
     }
 

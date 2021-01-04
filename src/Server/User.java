@@ -2,6 +2,7 @@ package Server;
 
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.locks.Condition;
 
 public class User {
     private String username;
@@ -11,9 +12,10 @@ public class User {
     private int localx;
     private int localy;
     private boolean[][] locals;
+    private Condition contactCon;
     private Set<String> contacts;
 
-    public User(String username, String password, boolean admin, int localx, int localy, int N) {
+    public User(String username, String password, boolean admin, int localx, int localy, int N, Condition contactCon) {
         this.username = username;
         this.password = password;
         this.admin = admin;
@@ -23,6 +25,7 @@ public class User {
         this.contacts = new TreeSet<>();
         this.locals = new boolean[N][N];
         this.locals[localx][localy] = true;
+        this.contactCon = contactCon;
     }
 
     public String getUsername() {
@@ -64,7 +67,19 @@ public class User {
         contacts.add(contact);
     }
 
+    public void removeContact(String contact) {
+        contacts.remove(contact);
+    }
+
+    public Set<String> getContacts() {
+        return contacts;
+    }
+
     public boolean getLocal(int localx, int localy) {
         return locals[localx][localy];
+    }
+
+    public Condition getContactCon() {
+        return contactCon;
     }
 }

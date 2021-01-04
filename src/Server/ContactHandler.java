@@ -1,31 +1,42 @@
 package Server;
 
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
-public class ContactHandler implements Runnable{
+public class ContactHandler implements Runnable {
+    private User user;
+    private Map<String, User> users;
     private ReentrantLock l;
-    private Condition con;
-    private DataOutputStream out;
+    private Condition update;
 
-    public ContactHandler(ReentrantLock l, Condition con, DataOutputStream out) {
+    public ContactHandler(User user, Map<String, User> users, ReentrantLock l) {
+        this.user = user;
+        this.users = users;
         this.l = l;
-        this.con = con;
-        this.out = out;
+        this.update = user.getContactCon();
     }
 
     public void run() {
         l.lock();
         try {
             while(true) {
-                con.await();
+                boolean onHold = true;
 
-                out.writeUTF("Esteve em contacto com um doente contaminado com covid-19");
-                out.flush();
+                while (onHold) {
+                    update.await();
+                    onHold = false;
+                }
+
+                List<String> contacts = users.values().stream().filter(us -> us.getLocalx() == user.getLocalx() && us.getLocaly() == user.getLocalx() && !us.getUsername().equals(user.getUsername()))
+                        .map(u -> u.getUsername()).collect(Collectors.toList());
+
+                for (String u : contacts)
+                    user.addContact(u);
             }
-        } catch (InterruptedException | IOException e) {
+        } catch (InterruptedException e) {
             e.printStackTrace();
         } finally {
             l.unlock();
