@@ -1,13 +1,9 @@
 package Server;
 
-import Exceptions.CurrentLocationException;
-import Exceptions.UserAlreadyExistsException;
-import Exceptions.UserDoesntExistException;
-import Exceptions.WrongPasswordException;
+import Exceptions.*;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Condition;
@@ -60,10 +56,17 @@ public class ClientHandler implements Runnable {
 
     private void interpreter_menu() throws IOException {
         boolean flag = true;
-        boolean admin = user.isAdmin();
-        String options;
-        if(admin) {
-            options =   "\n----------------------------------------" +
+        boolean admin;
+        boolean covid = false;
+
+        user.getLock().lock();
+        try {
+            admin = user.isAdmin();
+        } finally {
+            user.getLock().unlock();
+        }
+
+        String optionsAdmin =   "\n----------------------------------------" +
                         "\n               Menu Admin" +
                         "\n----------------------------------------" +
                         "\n 1 | Atualizar Localização" +
@@ -74,8 +77,8 @@ public class ClientHandler implements Runnable {
                         "\n 0 | Sair" +
                         "\n----------------------------------------" +
                         "\nEscolha uma opção: ";
-        } else {
-            options =   "\n----------------------------------------" +
+
+        String options =   "\n----------------------------------------" +
                         "\n            Menu Utilizador" +
                         "\n----------------------------------------" +
                         "\n 1 | Atualizar Localização" +
@@ -85,12 +88,32 @@ public class ClientHandler implements Runnable {
                         "\n 0 | Sair" +
                         "\n----------------------------------------" +
                         "\nEscolha uma opção: ";
-        }
+
+        String optionsCovid = "\n----------------------------------------" +
+                "\n            Menu Covid" +
+                "\n----------------------------------------" +
+                "\n 1 | Comunicar que recuperou" +
+                "\n 0 | Sair" +
+                "\n----------------------------------------" +
+                "\nEscolha uma opção: ";
+
 
         while(flag) {
+            user.getLock().lock();
+            try {
+                covid = user.isCovid();
+            } finally {
+                user.getLock().unlock();
+            }
+
             int option;
             if(admin)
-                option = lerInt(0, 5, options);
+                option = lerInt(0, 5, optionsAdmin);
+            else if (covid) {
+                option = lerInt(0, 1, optionsCovid);
+                if (option==1)
+                    option = 4;
+            }
             else
                 option = lerInt(0, 4, options);
 
@@ -116,8 +139,12 @@ public class ClientHandler implements Runnable {
                     }
                     break;
                 case 4:
-                    interpreter_4();
-                    printClient("Informação atualizada com sucesso");
+                    try {
+                        interpreter_4(covid);
+                        printClient("Informação atualizada com sucesso");
+                    } catch (SameStateException e) {
+                        printClient(e.getMessage());
+                    }
                     break;
                 case 5:
                     interpreter_5();
@@ -204,7 +231,8 @@ public class ClientHandler implements Runnable {
                     notEmpty.await();
 
                 printClient("\n----------------------" +
-                            "\nO local " + localX + " " + localY + " está vazio" +
+
+                 "\nO local " + localX + " " + localY + " está vazio" +
                             "\n----------------------");
             } catch (InterruptedException | IOException e) {
                 e.printStackTrace();
@@ -212,12 +240,14 @@ public class ClientHandler implements Runnable {
                 wl.unlock();
             }
         };
-
         new Thread(emptyPlaceHandler).start();
     }
 
-    private void interpreter_4() throws IOException {
+    private void interpreter_4(boolean covid) throws IOException, SameStateException {
         int res = lerInt(0, 1, "Está com Covid19? (0-Não/ 1-Sim)");
+
+        if ((res==1 && covid) || (res==0 && !covid))
+            throw new SameStateException("O seu estado já estava guardado");
 
         if (res == 1) {
             wl.lock();
@@ -230,6 +260,13 @@ public class ClientHandler implements Runnable {
 
             try {
                 user.setCovid(true);
+            } finally {
+                user.getLock().unlock();
+            }
+        } else {
+            user.getLock().lock();
+            try {
+                user.setCovid(false);
             } finally {
                 user.getLock().unlock();
             }
