@@ -1,45 +1,38 @@
 package Server;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 public class ContactHandler implements Runnable {
-    private User user;
-    private Map<String, User> users;
-    private ReentrantLock l;
-    private Condition update;
+    private final User user;
+    private final UserMap users;
 
-    public ContactHandler(User user, Map<String, User> users) {
+    public ContactHandler(User user, UserMap users) {
         this.user = user;
         this.users = users;
-        this.l = user.getLock();
-        this.update = user.getContactCon();
     }
 
     public void run() {
-        l.lock();
+        user.getLock().lock();
         try {
             while(true) {
                 boolean onHold = true;
 
                 while (onHold) {
-                    update.await();
+                    user.getContactCon().await();
                     onHold = false;
-
-                    List<String> contacts = users.values().stream().filter(us -> us.getLocalx() == user.getLocalx() && us.getLocaly() == user.getLocalx() && !us.getUsername().equals(user.getUsername()))
-                                .map(u -> u.getUsername()).collect(Collectors.toList());
-
-                    for (String u : contacts)
-                        user.addContact(u);
                 }
+
+                Set<String> contacts = users.peopleInLocationSet(user.getLocalx(), user.getLocaly());
+                contacts.remove(user.getUsername());
+
+                for (String u : contacts)
+                    user.addContact(u);
+
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
         } finally {
-            l.unlock();
+            user.getLock().unlock();
         }
     }
 }

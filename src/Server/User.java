@@ -7,22 +7,24 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class User {
-    private String username;
-    private String password;
-    private boolean admin;
+    private final String username;
+    private final String password;
+    private final boolean admin;
+    private boolean online;
     private boolean covid;
     private int localx;
     private int localy;
-    private boolean[][] locals;
-    private ReentrantLock lock;
-    private Condition contactCon;
-    private Condition dangerCon;
-    private Set<String> contacts;
+    private final boolean[][] locals;
+    private final ReentrantLock lock;
+    private final Condition contactCon;
+    private final Condition dangerCon;
+    private final Set<String> contacts;
 
     public User(String username, String password, boolean admin, int localx, int localy, int N) {
         this.username = username;
         this.password = password;
         this.admin = admin;
+        this.online = false;
         this.localx = localx;
         this.localy = localy;
         this.covid = false;
@@ -38,6 +40,7 @@ public class User {
         this.username = username;
         this.password = password;
         this.admin = admin;
+        this.online = false;
         this.localx = localx;
         this.localy = localy;
         this.covid = false;
@@ -73,6 +76,14 @@ public class User {
         return admin;
     }
 
+    public boolean isOnline() {
+        return online;
+    }
+
+    public void setOnline(boolean online) {
+        this.online = online;
+    }
+
     public void setCovid(boolean covid) {
         this.covid = covid;
     }
@@ -87,10 +98,6 @@ public class User {
 
     public void addContact(String contact) {
         contacts.add(contact);
-    }
-
-    public void removeContact(String contact) {
-        contacts.remove(contact);
     }
 
     public Set<String> getContacts() {

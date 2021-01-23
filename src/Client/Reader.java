@@ -4,8 +4,8 @@ import java.io.*;
 import java.net.Socket;
 
 public class Reader implements Runnable {
-    private Socket socket;
-    private DataInputStream in;
+    private final Socket socket;
+    private final DataInputStream in;
 
     public Reader(Socket socket) throws IOException {
         this.socket = socket;
@@ -15,11 +15,10 @@ public class Reader implements Runnable {
     public void run() {
         try {
             String line;
-            while ((line = in.readUTF()) != null)
+            while (true) {
+                line = in.readUTF();
                 System.out.println(line);
-
-            in.close();
-            socket.close();
+            }
         } catch (IOException ignored) {}
     }
 }

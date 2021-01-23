@@ -4,32 +4,21 @@ import Exceptions.*;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 
 public class ClientHandler implements Runnable {
     private static final int N = 10;
-    private Map<String, User> users;
-    private Socket socket;
-    private Lock rl;
-    private Lock wl;
-    private Condition notEmpty;
-    private DataInputStream in;
-    private DataOutputStream out;
+    private final Socket socket;
+    private final UserMap users;
+    private final DataInputStream in;
+    private final DataOutputStream out;
     private User user;
 
-    public ClientHandler(Map<String, User> users, Socket socket, Lock rl, Lock wl, Condition notEmpty) throws IOException {
+    public ClientHandler(UserMap users, Socket socket) throws IOException {
         this.users = users;
-        this.rl = rl;
-        this.wl = wl;
         this.socket = socket;
-        this.notEmpty = notEmpty;
         this.in = new DataInputStream(new BufferedInputStream(this.socket.getInputStream()));
         this.out = new DataOutputStream(this.socket.getOutputStream());
         this.user = null;
@@ -45,85 +34,53 @@ public class ClientHandler implements Runnable {
                 contact.start();
                 danger.start();
 
+                user.getLock().lock();
+                try {
+                    user.getContactCon().signal();
+                } finally {
+                    user.getLock().unlock();
+                }
+
                 interpreter_menu();
             }
+
             in.close();
             out.close();
-
             socket.close();
 
         } catch (IOException ignored) {}
     }
 
     private void interpreter_menu() throws IOException {
-        boolean flag = true;
-        boolean admin;
-        boolean covid = false;
+        boolean admin, covid, flag = true;
+        int option, localX, localY;
 
         user.getLock().lock();
         try {
             admin = user.isAdmin();
+            covid = user.isCovid();
+            localX = user.getLocalx();
+            localY = user.getLocaly();
         } finally {
             user.getLock().unlock();
         }
 
-        String optionsAdmin =   "\n----------------------------------------" +
-                        "\n               Menu Admin" +
-                        "\n----------------------------------------" +
-                        "\n 1 | Atualizar Localização" +
-                        "\n 2 | Numero de pessoas numa localização" +
-                        "\n 3 | Pedir para informar sobre um local" +
-                        "\n 4 | Comunicar que está doente" +
-                        "\n 5 | Mapa de Localizações" +
-                        "\n 0 | Sair" +
-                        "\n----------------------------------------" +
-                        "\nEscolha uma opção: ";
-
-        String options =   "\n----------------------------------------" +
-                        "\n            Menu Utilizador" +
-                        "\n----------------------------------------" +
-                        "\n 1 | Atualizar Localização" +
-                        "\n 2 | Numero de pessoas numa localização" +
-                        "\n 3 | Pedir para informar sobre um local" +
-                        "\n 4 | Comunicar que está doente" +
-                        "\n 0 | Sair" +
-                        "\n----------------------------------------" +
-                        "\nEscolha uma opção: ";
-
-        String optionsCovid = "\n----------------------------------------" +
-                "\n            Menu Covid" +
-                "\n----------------------------------------" +
-                "\n 1 | Comunicar que recuperou" +
-                "\n 0 | Sair" +
-                "\n----------------------------------------" +
-                "\nEscolha uma opção: ";
-
-
-        while(flag) {
-            user.getLock().lock();
-            try {
-                covid = user.isCovid();
-            } finally {
-                user.getLock().unlock();
-            }
-
-            int option;
-            if(admin)
-                option = lerInt(0, 5, optionsAdmin);
-            else if (covid) {
-                option = 0;
-                printClient("\n-------------------------------------------------" +
-                            "\n Utilizador com covid. Mantenha-se em isolamento" +
-                            "\n-------------------------------------------------");
-            }
-            else
-                option = lerInt(0, 4, options);
+        while(flag && !covid) {
+            option = lerInt(admin ? 5 : 4, getMenu(admin, localX, localY));
 
             switch(option) {
                 case 1:
                     try {
                         interpreter_1();
                         printClient("Atualizado com sucesso");
+
+                        user.getLock().lock();
+                        try {
+                            localX = user.getLocalx();
+                            localY = user.getLocaly();
+                        } finally {
+                            user.getLock().unlock();
+                        }
                     } catch (CurrentLocationException e) {
                         printClient(e.getMessage());
                     }
@@ -143,7 +100,7 @@ public class ClientHandler implements Runnable {
                 case 4:
                     try {
                         interpreter_4();
-                        printClient("Informação atualizada com sucesso");
+                        covid = true;
                     } catch (SameStateException e) {
                         printClient(e.getMessage());
                     }
@@ -156,11 +113,24 @@ public class ClientHandler implements Runnable {
                     break;
             }
         }
+
+        if (covid) {
+            printClient("\n-------------------------------------------------" +
+                        "\n Utilizador com covid. Mantenha-se em isolamento" +
+                        "\n-------------------------------------------------");
+        }
+
+        user.getLock().lock();
+        try {
+            user.setOnline(false);
+        } finally {
+            user.getLock().unlock();
+        }
     }
 
     private void interpreter_1() throws IOException, CurrentLocationException {
-        int localX = lerInt(0, N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
-        int localY = lerInt(0, N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
+        int localX = lerInt(N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
+        int localY = lerInt(N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
         int oldLocalX;
         int oldLocalY;
 
@@ -177,14 +147,15 @@ public class ClientHandler implements Runnable {
             user.getLock().unlock();
         }
 
-        wl.lock();
+        users.getWriteLock().lock();
         try {
-            if (users.values().stream().noneMatch(us -> us.getLocalx() == oldLocalX && us.getLocaly() == oldLocalY))
-                notEmpty.signalAll();
+            if (users.emptyLocal(oldLocalX, oldLocalY))
+                users.getNotEmptyCon().signalAll();
 
-            Set<User> people = users.values().stream().filter(us -> us.getLocalx() == user.getLocalx() && us.getLocaly() == user.getLocalx()).collect(Collectors.toSet());
+            Set<String> people = users.peopleInLocationSet(localX, localY);
 
-            for (User us : people) {
+            for (String u : people) {
+                User us = users.get(u);
                 us.getLock().lock();
                 try {
                     us.getContactCon().signal();
@@ -193,25 +164,25 @@ public class ClientHandler implements Runnable {
                 }
             }
         } finally {
-            wl.unlock();
+            users.getWriteLock().unlock();
         }
     }
 
     private int interpreter_2() throws IOException {
-        int localX = lerInt(0, N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
-        int localY = lerInt(0, N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
+        int localX = lerInt(N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
+        int localY = lerInt(N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
 
-        rl.lock();
+        users.getReadLock().lock();
         try {
-            return (int) users.values().stream().filter(u -> u.getLocalx() == localX && u.getLocaly() == localY).count();
+            return users.peopleInLocation(localX, localY);
         } finally {
-            rl.unlock();
+            users.getReadLock().unlock();
         }
     }
 
     private void interpreter_3() throws IOException, CurrentLocationException {
-        int localX = lerInt(0, N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
-        int localY = lerInt(0, N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
+        int localX = lerInt(N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
+        int localY = lerInt(N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
         int oldLocalX;
         int oldLocalY;
 
@@ -226,100 +197,88 @@ public class ClientHandler implements Runnable {
         if (oldLocalX == localX && oldLocalY == localY)
             throw new CurrentLocationException("Esta é a sua localização atual");
 
-        Runnable emptyPlaceHandler = () -> {
-            wl.lock();
-            try {
-                while(users.values().stream().anyMatch(u -> u.getLocalx() == localX && u.getLocaly() == localY))
-                    notEmpty.await();
-
-                printClient("\n----------------------" +
-
-                 "\nO local " + localX + " " + localY + " está vazio" +
-                            "\n----------------------");
-            } catch (InterruptedException | IOException e) {
-                e.printStackTrace();
-            } finally {
-                wl.unlock();
-            }
-        };
-        new Thread(emptyPlaceHandler).start();
+        Thread t = new Thread(new EmptyPlaceHandler(users, out, localX ,localY));
+        t.start();
     }
 
     private void interpreter_4() throws IOException, SameStateException {
-        int res = lerInt(0, 1, "Está com Covid19? (0-Não/ 1-Sim)");
+        Set<String> contacts;
+        int res = lerInt(1, "Está com Covid19? (0-Não/ 1-Sim)");
 
         if (res == 0)
             throw new SameStateException("O seu estado já estava guardado.");
 
-
-        wl.lock();
+        user.getLock().lock();
         try {
-            user.getLock().lock();
+            contacts = user.getContacts();
+            user.setCovid(true);
+        } finally {
+            user.getLock().unlock();
+        }
 
-            try {
-                user.setCovid(true);
-                for (String u: user.getContacts()) {
+        users.getWriteLock().lock();
+        try {
+            for (String u: contacts) {
+                User usr = users.get(u);
+
+                usr.getLock().lock();
+                try {
                     users.get(u).getDangerCon().signal();
+                } finally {
+                    usr.getLock().unlock();
                 }
-            } finally {
-                user.getLock().unlock();
             }
         } finally {
-            wl.unlock();
+            users.getWriteLock().unlock();
         }
     }
 
     private void interpreter_5() throws IOException {
         int[][] usrs = new int[N][N];
         int[][] contaminated = new int[N][N];
-        String line;
+        StringBuilder line;
         ReentrantLock mapLock = new ReentrantLock();
 
-        rl.lock();
+        users.getReadLock().lock();
         try {
-            int usersNumber = users.values().size();
-            List<User> userList = new ArrayList<>(users.values());
-            Thread[] threadUser = new Thread[usersNumber];
-            for (int i = 0; i<usersNumber; i++) {
+            int size = users.userNumber();
+            List<User> userList = users.userList();
+            Thread[] threadUser = new Thread[size];
+
+            for (int i = 0; i<size; i++) {
                 threadUser[i] = new Thread(new MapHandler(usrs, contaminated, mapLock, userList.get(i),N));
                 threadUser[i].start();
             }
 
-            for (int i = 0; i<usersNumber; i++) {
+            for (int i = 0; i<size; i++) {
                 threadUser[i].join();
             }
-        } catch (InterruptedException ignored) {} finally {
-            rl.unlock();
+        } catch (InterruptedException ignored) {
+
+        } finally {
+            users.getReadLock().unlock();
         }
 
         printClient("Mapa de Localizações (Contaminado|Total)");
 
-        line = "   ";
+        line = new StringBuilder("   ");
         for(int i=0; i<N; i++)
-            line += i + "   ";
-        printClient(line);
+            line.append(i).append("   ");
+        printClient(line.toString());
 
         for(int i=0; i<N; i++) {
-            line = i + " ";
+            line = new StringBuilder(i + " ");
             for (int j = 0; j < N; j++)
-                line += contaminated[i][j] + "|" + usrs[i][j] + " ";
-            printClient(line);
+                line.append(contaminated[i][j]).append("|").append(usrs[i][j]).append(" ");
+            printClient(line.toString());
         }
     }
 
     private int interpreter_initial() throws IOException {
         int flag = 0;
-        String options =    "\n-------------------" +
-                            "\n     Menu Login" +
-                            "\n-------------------" +
-                            "\n 1 | Login" +
-                            "\n 2 | Registar" +
-                            "\n 0 | Sair" +
-                            "\n-------------------" +
-                            "\nEscolha uma opção: ";
 
         while(flag==0) {
-            int option = lerInt(0, 2, options);
+            int option = lerInt(2, getMenuLogin());
 
             switch (option) {
                 case 1:
@@ -353,7 +312,7 @@ public class ClientHandler implements Runnable {
         String password = lerString("Introduza a palavra pass: ");
         User u;
 
-        rl.lock();
+        users.getReadLock().lock();
         try {
             u = users.get(username);
             if (u == null)
@@ -361,7 +320,7 @@ public class ClientHandler implements Runnable {
 
             u.getLock().lock();
         } finally {
-            rl.unlock();
+            users.getReadLock().unlock();
         }
 
         try {
@@ -369,6 +328,8 @@ public class ClientHandler implements Runnable {
                 throw new WrongPasswordException("Palavra Pass errada");
 
             this.user = u;
+
+            u.setOnline(true);
         } finally {
             u.getLock().unlock();
         }
@@ -377,10 +338,10 @@ public class ClientHandler implements Runnable {
     private void interpreter_register() throws IOException, UserAlreadyExistsException {
         String username = lerString("Introduza o nome de utilizador: ");
         String password = lerString("Introduza a palavra pass: ");
-        int localX = lerInt(0, N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
-        int localY = lerInt(0, N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
+        int localX = lerInt(N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
+        int localY = lerInt(N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
 
-        wl.lock();
+        users.getWriteLock().lock();
         try {
             if (users.get(username) != null)
                 throw new UserAlreadyExistsException("O utilizador já existe");
@@ -389,9 +350,10 @@ public class ClientHandler implements Runnable {
 
             user = users.get(username);
 
-            Set<User> people = users.values().stream().filter(us -> us.getLocalx() == user.getLocalx() && us.getLocaly() == user.getLocalx()).collect(Collectors.toSet());
+            Set<String> people = users.peopleInLocationSet(localX, localY);
 
-            for (User us : people) {
+            for (String u : people) {
+                User us = users.get(u);
                 us.getLock().lock();
                 try {
                     us.getContactCon().signal();
@@ -400,7 +362,7 @@ public class ClientHandler implements Runnable {
                 }
             }
         } finally {
-            wl.unlock();
+            users.getWriteLock().unlock();
         }
     }
 
@@ -414,7 +376,7 @@ public class ClientHandler implements Runnable {
         return line;
     }
 
-    private int lerInt(int min, int max, String message) throws IOException {
+    private int lerInt(int max, String message) throws IOException {
         int n;
 
         do{
@@ -425,7 +387,7 @@ public class ClientHandler implements Runnable {
             } catch (NumberFormatException | IOException nfe) {
                 n = -1;
             }
-        } while (n < min || n > max);
+        } while (n < 0 || n > max);
 
         return n;
     }
@@ -433,5 +395,43 @@ public class ClientHandler implements Runnable {
     private void printClient(String message) throws IOException {
         out.writeUTF(message);
         out.flush();
+    }
+
+    private String getMenu(boolean admin, int localX, int localY) {
+        if(admin) return "\n----------------------------------------" +
+                "\n               Menu Admin" +
+                "\n            Coordenadas: " + localX + " " + localY +
+                "\n----------------------------------------" +
+                "\n 1 | Atualizar Localização" +
+                "\n 2 | Numero de pessoas numa localização" +
+                "\n 3 | Pedir para informar sobre um local" +
+                "\n 4 | Comunicar que está doente" +
+                "\n 5 | Mapa de Localizações" +
+                "\n 0 | Sair" +
+                "\n----------------------------------------" +
+                "\nEscolha uma opção: ";
+
+        else return "\n----------------------------------------" +
+                "\n            Menu Utilizador" +
+                "\n           Coordenadas: " + localX + " " + localY +
+                "\n----------------------------------------" +
+                "\n 1 | Atualizar Localização" +
+                "\n 2 | Numero de pessoas numa localização" +
+                "\n 3 | Pedir para informar sobre um local" +
+                "\n 4 | Comunicar que está doente" +
+                "\n 0 | Sair" +
+                "\n----------------------------------------" +
+                "\nEscolha uma opção: ";
+    }
+
+    private String getMenuLogin() {
+        return  "\n-------------------" +
+                "\n     Menu Login" +
+                "\n-------------------" +
+                "\n 1 | Login" +
+                "\n 2 | Registar" +
+                "\n 0 | Sair" +
+                "\n-------------------" +
+                "\nEscolha uma opção: ";
     }
 }

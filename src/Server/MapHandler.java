@@ -3,11 +3,11 @@ package Server;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class MapHandler implements Runnable{
-    private int [][] users;
-    private int [][] contaminated;
-    private ReentrantLock lock;
-    private User user;
-    private int N;
+    private final int[][] users;
+    private final int[][] contaminated;
+    private final ReentrantLock lock;
+    private final User user;
+    private final int N;
 
     public MapHandler(int[][] users, int[][] contaminated, ReentrantLock lock, User user, int N) {
         this.users = users;
