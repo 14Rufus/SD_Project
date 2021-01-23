@@ -110,9 +110,10 @@ public class ClientHandler implements Runnable {
             if(admin)
                 option = lerInt(0, 5, optionsAdmin);
             else if (covid) {
-                option = lerInt(0, 1, optionsCovid);
-                if (option==1)
-                    option = 4;
+                option = 0;
+                printClient("\n-------------------------------------------------" +
+                            "\n Utilizador com covid. Mantenha-se em isolamento" +
+                            "\n-------------------------------------------------");
             }
             else
                 option = lerInt(0, 4, options);
