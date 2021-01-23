@@ -4,10 +4,13 @@ import Exceptions.*;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 public class ClientHandler implements Runnable {
@@ -278,18 +281,22 @@ public class ClientHandler implements Runnable {
         int[][] usrs = new int[N][N];
         int[][] contaminated = new int[N][N];
         String line;
+        ReentrantLock mapLock = new ReentrantLock();
 
         rl.lock();
         try {
-            for(User u: users.values())
-                for(int i=0; i<N; i++)
-                    for(int j=0; j<N; j++)
-                        if(u.getLocal(i, j)) {
-                            usrs[i][j]++;
-                            if(u.isCovid())
-                                contaminated[i][j]++;
-                        }
-        } finally {
+            int usersNumber = users.values().size();
+            List<User> userList = new ArrayList<>(users.values());
+            Thread[] threadUser = new Thread[usersNumber];
+            for (int i = 0; i<usersNumber; i++) {
+                threadUser[i] = new Thread(new MapHandler(usrs, contaminated, mapLock, userList.get(i),N));
+                threadUser[i].start();
+            }
+
+            for (int i = 0; i<usersNumber; i++) {
+                threadUser[i].join();
+            }
+        } catch (InterruptedException e) { } finally {
             rl.unlock();
         }
 
