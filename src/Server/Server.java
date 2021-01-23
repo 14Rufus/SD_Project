@@ -25,14 +25,13 @@ public class Server {
         Lock rl = l.readLock();
         Lock wl = l.writeLock();
         Condition notEmpty = wl.newCondition();
-        Condition covidDanger = wl.newCondition();
 
         initUsers(users, wl);
 
         while(true) {
             Socket socket = ss.accept();
 
-            Thread clientHandler = new Thread(new ClientHandler(users, socket, rl, wl, notEmpty, covidDanger));
+            Thread clientHandler = new Thread(new ClientHandler(users, socket, rl, wl, notEmpty));
 
             clientHandler.start();
         }

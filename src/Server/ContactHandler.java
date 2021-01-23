@@ -28,13 +28,13 @@ public class ContactHandler implements Runnable {
                 while (onHold) {
                     update.await();
                     onHold = false;
+
+                    List<String> contacts = users.values().stream().filter(us -> us.getLocalx() == user.getLocalx() && us.getLocaly() == user.getLocalx() && !us.getUsername().equals(user.getUsername()))
+                                .map(u -> u.getUsername()).collect(Collectors.toList());
+
+                    for (String u : contacts)
+                        user.addContact(u);
                 }
-
-                List<String> contacts = users.values().stream().filter(us -> us.getLocalx() == user.getLocalx() && us.getLocaly() == user.getLocalx() && !us.getUsername().equals(user.getUsername()))
-                        .map(u -> u.getUsername()).collect(Collectors.toList());
-
-                for (String u : contacts)
-                    user.addContact(u);
             }
         } catch (InterruptedException e) {
             e.printStackTrace();

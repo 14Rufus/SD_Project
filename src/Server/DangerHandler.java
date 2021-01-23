@@ -8,44 +8,33 @@ import java.util.concurrent.locks.Lock;
 
 public class DangerHandler implements Runnable {
     private User user;
-    private Map<String, User> users;
-    private Lock wl;
-    private Condition danger;
     private DataOutputStream out;
 
-    public DangerHandler(User user, Map<String, User> users, Lock wl, Condition danger, DataOutputStream out) {
+    public DangerHandler(User user, DataOutputStream out) {
         this.user = user;
-        this.users = users;
-        this.wl = wl;
-        this.danger = danger;
         this.out = out;
     }
 
     public void run() {
-        wl.lock();
+        user.getLock().lock();
         try {
             while(true) {
                 boolean onHold = true;
 
                 while (onHold) {
-                    danger.await();
+                    user.getDangerCon().await();
                     onHold = false;
+
+                    out.writeUTF("\n-------------------------------------------" +
+                                "\nEsteve em contacto com um doente de Covid19" +
+                                "\n-------------------------------------------");
+                    out.flush();
                 }
-
-                for(String u : user.getContacts())
-                    if(users.get(u).isCovid()) {
-                        user.removeContact(u);
-
-                        out.writeUTF("\n-------------------------------------------" +
-                                    "\nEsteve em contacto com um doente de Covid19" +
-                                    "\n-------------------------------------------");
-                        out.flush();
-                    }
             }
         } catch (InterruptedException | IOException e) {
             e.printStackTrace();
         } finally {
-            wl.unlock();
+            user.getLock().unlock();
         }
     }
 }

@@ -20,18 +20,16 @@ public class ClientHandler implements Runnable {
     private Lock rl;
     private Lock wl;
     private Condition notEmpty;
-    private Condition covidDanger;
     private DataInputStream in;
     private DataOutputStream out;
     private User user;
 
-    public ClientHandler(Map<String, User> users, Socket socket, Lock rl, Lock wl, Condition notEmpty, Condition covidDanger) throws IOException {
+    public ClientHandler(Map<String, User> users, Socket socket, Lock rl, Lock wl, Condition notEmpty) throws IOException {
         this.users = users;
         this.rl = rl;
         this.wl = wl;
         this.socket = socket;
         this.notEmpty = notEmpty;
-        this.covidDanger = covidDanger;
         this.in = new DataInputStream(new BufferedInputStream(this.socket.getInputStream()));
         this.out = new DataOutputStream(this.socket.getOutputStream());
         this.user = null;
@@ -43,7 +41,7 @@ public class ClientHandler implements Runnable {
 
             if(flag==1) {
                 Thread contact = new Thread(new ContactHandler(user, users));
-                Thread danger = new Thread(new DangerHandler(user, users, wl, covidDanger, out));
+                Thread danger = new Thread(new DangerHandler(user, out));
                 contact.start();
                 danger.start();
 
@@ -144,7 +142,7 @@ public class ClientHandler implements Runnable {
                     break;
                 case 4:
                     try {
-                        interpreter_4(covid);
+                        interpreter_4();
                         printClient("Informação atualizada com sucesso");
                     } catch (SameStateException e) {
                         printClient(e.getMessage());
@@ -247,33 +245,27 @@ public class ClientHandler implements Runnable {
         new Thread(emptyPlaceHandler).start();
     }
 
-    private void interpreter_4(boolean covid) throws IOException, SameStateException {
+    private void interpreter_4() throws IOException, SameStateException {
         int res = lerInt(0, 1, "Está com Covid19? (0-Não/ 1-Sim)");
 
-        if ((res==1 && covid) || (res==0 && !covid))
-            throw new SameStateException("O seu estado já estava guardado");
+        if (res == 0)
+            throw new SameStateException("O seu estado já estava guardado.");
 
-        if (res == 1) {
-            wl.lock();
-            try {
-                covidDanger.signalAll();
-                user.getLock().lock();
-            } finally {
-                wl.unlock();
-            }
+
+        wl.lock();
+        try {
+            user.getLock().lock();
 
             try {
                 user.setCovid(true);
+                for (String u: user.getContacts()) {
+                    users.get(u).getDangerCon().signal();
+                }
             } finally {
                 user.getLock().unlock();
             }
-        } else {
-            user.getLock().lock();
-            try {
-                user.setCovid(false);
-            } finally {
-                user.getLock().unlock();
-            }
+        } finally {
+            wl.unlock();
         }
     }
 
@@ -296,7 +288,7 @@ public class ClientHandler implements Runnable {
             for (int i = 0; i<usersNumber; i++) {
                 threadUser[i].join();
             }
-        } catch (InterruptedException e) { } finally {
+        } catch (InterruptedException ignored) {} finally {
             rl.unlock();
         }
 

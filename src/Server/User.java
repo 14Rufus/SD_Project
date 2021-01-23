@@ -16,6 +16,7 @@ public class User {
     private boolean[][] locals;
     private ReentrantLock lock;
     private Condition contactCon;
+    private Condition dangerCon;
     private Set<String> contacts;
 
     public User(String username, String password, boolean admin, int localx, int localy, int N) {
@@ -30,6 +31,7 @@ public class User {
         this.locals[localx][localy] = true;
         this.lock = new ReentrantLock();
         this.contactCon = lock.newCondition();
+        this.dangerCon = lock.newCondition();
     }
 
     public User(String username, String password, boolean admin, int localx, int localy, int N, List<String> contacts) {
@@ -45,6 +47,7 @@ public class User {
         this.locals[localx][localy] = true;
         this.lock = new ReentrantLock();
         this.contactCon = lock.newCondition();
+        this.dangerCon = lock.newCondition();
     }
 
     public String getUsername() {
@@ -104,5 +107,9 @@ public class User {
 
     public ReentrantLock getLock() {
         return lock;
+    }
+
+    public Condition getDangerCon() {
+        return dangerCon;
     }
 }
