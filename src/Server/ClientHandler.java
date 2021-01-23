@@ -34,11 +34,11 @@ public class ClientHandler implements Runnable {
                 contact.start();
                 danger.start();
 
-                user.getLock().lock();
+                users.getWriteLock().lock();
                 try {
-                    user.getContactCon().signal();
+                    update_contacts();
                 } finally {
-                    user.getLock().unlock();
+                    users.getWriteLock().unlock();
                 }
 
                 interpreter_menu();
@@ -152,17 +152,7 @@ public class ClientHandler implements Runnable {
             if (users.emptyLocal(oldLocalX, oldLocalY))
                 users.getNotEmptyCon().signalAll();
 
-            Set<String> people = users.peopleInLocationSet(localX, localY);
-
-            for (String u : people) {
-                User us = users.get(u);
-                us.getLock().lock();
-                try {
-                    us.getContactCon().signal();
-                } finally {
-                    us.getLock().unlock();
-                }
-            }
+            update_contacts();
         } finally {
             users.getWriteLock().unlock();
         }
@@ -349,20 +339,32 @@ public class ClientHandler implements Runnable {
             users.put(username, new User(username, password,false, localX, localY, N));
 
             user = users.get(username);
-
-            Set<String> people = users.peopleInLocationSet(localX, localY);
-
-            for (String u : people) {
-                User us = users.get(u);
-                us.getLock().lock();
-                try {
-                    us.getContactCon().signal();
-                } finally {
-                    us.getLock().unlock();
-                }
-            }
         } finally {
             users.getWriteLock().unlock();
+        }
+    }
+
+    private void update_contacts() {
+        int localX, localY;
+
+        user.getLock().lock();
+        try{
+            localX = user.getLocalx();
+            localY = user.getLocaly();
+        } finally {
+            user.getLock().unlock();
+        }
+
+        Set<String> people = users.peopleInLocationSet(localX, localY);
+
+        for (String u : people) {
+            User us = users.get(u);
+            us.getLock().lock();
+            try {
+                us.getContactCon().signal();
+            } finally {
+                us.getLock().unlock();
+            }
         }
     }
 
