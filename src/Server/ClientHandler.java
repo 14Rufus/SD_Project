@@ -225,6 +225,8 @@ public class ClientHandler implements Runnable {
     /**
      * Implementa a quarta funcionalidade do menu
      *
+     * @param covid                 Estado de infeção do Utilizador
+     * @return                      Booleano que representa a transição para infetado
      * @throws IOException          Exceção lançada quando algo inesperado ocorre
      * @throws SameStateException   Exceção lançada quando o estado de infeção introduzido é o mesmo que o anterior
      */
