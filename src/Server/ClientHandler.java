@@ -83,8 +83,10 @@ public class ClientHandler implements Runnable {
             user.getLock().unlock();
         }
 
-        while(flag && !covid) {
-            option = lerInt(admin ? 5 : 4, getMenu(admin, localX, localY));
+        while(flag) {
+            option = lerInt(covid ? 1 : (admin ? 5 : 4), getMenu(admin, localX, localY, covid));
+            if (option == 1 && covid)
+                option = 4;
 
             switch(option) {
                 case 1:
@@ -117,8 +119,7 @@ public class ClientHandler implements Runnable {
                     break;
                 case 4:
                     try {
-                        interpreter_4();
-                        covid = true;
+                        covid = interpreter_4(covid);
                     } catch (SameStateException e) {
                         printClient(e.getMessage());
                     }
@@ -130,12 +131,6 @@ public class ClientHandler implements Runnable {
                     flag = false;
                     break;
             }
-        }
-
-        if (covid) {
-            printClient("\n-------------------------------------------------" +
-                        "\n Utilizador com covid. Mantenha-se em isolamento" +
-                        "\n-------------------------------------------------");
         }
 
         user.getLock().lock();
@@ -233,36 +228,48 @@ public class ClientHandler implements Runnable {
      * @throws IOException          Exceção lançada quando algo inesperado ocorre
      * @throws SameStateException   Exceção lançada quando o estado de infeção introduzido é o mesmo que o anterior
      */
-    private void interpreter_4() throws IOException, SameStateException {
+    private boolean interpreter_4(boolean covid) throws IOException, SameStateException {
         Set<String> contacts;
         int res = lerInt(1, "Está com Covid19? (0-Não/ 1-Sim)");
 
-        if (res == 0)
+        if ((res == 0 && !covid) || (res == 1 && covid))
             throw new SameStateException("O seu estado já estava guardado.");
 
-        user.getLock().lock();
-        try {
-            contacts = user.getContacts();
-            user.setCovid(true);
-        } finally {
-            user.getLock().unlock();
-        }
-
-        users.getWriteLock().lock();
-        try {
-            for (String u: contacts) {
-                User usr = users.get(u);
-
-                usr.getLock().lock();
-                try {
-                    users.get(u).getDangerCon().signal();
-                } finally {
-                    usr.getLock().unlock();
-                }
+        if (res == 1) {
+            user.getLock().lock();
+            try {
+                contacts = user.getContacts();
+                user.setCovid(true);
+            } finally {
+                user.getLock().unlock();
             }
-        } finally {
-            users.getWriteLock().unlock();
+
+            users.getWriteLock().lock();
+            try {
+                for (String u: contacts) {
+                    User usr = users.get(u);
+
+                    usr.getLock().lock();
+                    try {
+                        users.get(u).getDangerCon().signal();
+                    } finally {
+                        usr.getLock().unlock();
+                    }
+                }
+            } finally {
+                users.getWriteLock().unlock();
+            }
         }
+        else {
+            user.getLock().lock();
+            try {
+                user.setCovid(false);
+            } finally {
+                user.getLock().unlock();
+            }
+        }
+
+        return res == 1;
     }
 
     /**
@@ -497,8 +504,16 @@ public class ClientHandler implements Runnable {
      * @param localY    coordenada y da localização do Utilizador
      * @return          String que representa o menu do Utilizador/Admin
      */
-    private String getMenu(boolean admin, int localX, int localY) {
-        if(admin) return "\n----------------------------------------" +
+    private String getMenu(boolean admin, int localX, int localY, boolean covid) {
+        if (covid) return "\n----------------------------------------" +
+                "\n            Menu Covid" +
+                "\n----------------------------------------" +
+                "\n 1 | Comunicar que recuperou" +
+                "\n 0 | Sair" +
+                "\n----------------------------------------" +
+                "\nEscolha uma opção: ";
+
+        else if(admin) return "\n----------------------------------------" +
                 "\n               Menu Admin" +
                 "\n            Coordenadas: " + localX + " " + localY +
                 "\n----------------------------------------" +
