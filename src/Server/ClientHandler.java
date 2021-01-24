@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * Classe que controla o Cliente
+ */
 public class ClientHandler implements Runnable {
     private static final int N = 10;
     private final Socket socket;
@@ -16,6 +19,13 @@ public class ClientHandler implements Runnable {
     private final DataOutputStream out;
     private User user;
 
+    /**
+     * Construtor da Classe
+     *
+     * @param users         Mapa de Utilizadores
+     * @param socket        Socket que conecta ao Cliente
+     * @throws IOException  Exceção lançada quando algo inesperado ocorre
+     */
     public ClientHandler(UserMap users, Socket socket) throws IOException {
         this.users = users;
         this.socket = socket;
@@ -24,6 +34,9 @@ public class ClientHandler implements Runnable {
         this.user = null;
     }
 
+    /**
+     * Define o comportamento de uma Thread
+     */
     public void run() {
         try {
             int flag = interpreter_initial();
@@ -51,6 +64,11 @@ public class ClientHandler implements Runnable {
         } catch (IOException ignored) {}
     }
 
+    /**
+     * Interpretador do menu
+     *
+     * @throws IOException  Exceção lançada quando algo inesperado ocorre
+     */
     private void interpreter_menu() throws IOException {
         boolean admin, covid, flag = true;
         int option, localX, localY;
@@ -128,6 +146,12 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Implementa a primeira funcionalidade do menu
+     *
+     * @throws IOException              Exceção lançada quando algo inesperado ocorre
+     * @throws CurrentLocationException Exceção lançada quando a nova localização é igual à anterior
+     */
     private void interpreter_1() throws IOException, CurrentLocationException {
         int localX = lerInt(N-1, "Introduza a sua coordenada latitudinal (0 a " +(N-1)+ "): ");
         int localY = lerInt(N-1, "Introduza a sua coordenada longitudinal (0 a " +(N-1)+ "): ");
@@ -158,6 +182,12 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Implementa a segunda funcionalidade do menu
+     *
+     * @return              Inteiro que representa o número de Utilizadores na localização introduzida
+     * @throws IOException  Excaeção lançada quando algo inesperado ocorre
+     */
     private int interpreter_2() throws IOException {
         int localX = lerInt(N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
         int localY = lerInt(N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
@@ -170,6 +200,12 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Implementa a terceira funcionalidade do menu
+     *
+     * @throws IOException              Exceção lançada quando algo inesperado ocorre
+     * @throws CurrentLocationException Exceção lançada quando a nova localização é igual à anterior
+     */
     private void interpreter_3() throws IOException, CurrentLocationException {
         int localX = lerInt(N-1, "Introduza a coordenada latitudinal desejada (0 a " +(N-1)+ "): ");
         int localY = lerInt(N-1, "Introduza a coordenada longitudinal desejada (0 a " +(N-1)+ "): ");
@@ -191,6 +227,12 @@ public class ClientHandler implements Runnable {
         t.start();
     }
 
+    /**
+     * Implementa a quarta funcionalidade do menu
+     *
+     * @throws IOException          Exceção lançada quando algo inesperado ocorre
+     * @throws SameStateException   Exceção lançada quando o estado de infeção introduzido é o mesmo que o anterior
+     */
     private void interpreter_4() throws IOException, SameStateException {
         Set<String> contacts;
         int res = lerInt(1, "Está com Covid19? (0-Não/ 1-Sim)");
@@ -223,6 +265,11 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Implementa a quinta funcionalidade do menu
+     *
+     * @throws IOException  Exceção lançada quando algo inesperado ocorre
+     */
     private void interpreter_5() throws IOException {
         int[][] usrs = new int[N][N];
         int[][] contaminated = new int[N][N];
@@ -264,6 +311,12 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Interpretador do menu inicial
+     *
+     * @return              Inteiro que indica se uma opção foi escolhida
+     * @throws IOException  Exceção lançada quando algo inesperado ocorre
+     */
     private int interpreter_initial() throws IOException {
         int flag = 0;
 
@@ -297,6 +350,13 @@ public class ClientHandler implements Runnable {
         return flag;
     }
 
+    /**
+     * Interpretador da opção login
+     *
+     * @throws IOException              Exceção lançada quando algo inesperado ocorre
+     * @throws UserDoesntExistException Exceção lançada quando o Utilizador é inexistente
+     * @throws WrongPasswordException   Exceção lançada quando a password introduzida é inválida
+     */
     private void interpreter_login() throws IOException, UserDoesntExistException, WrongPasswordException {
         String username = lerString("Introduza o nome de utilizador: ");
         String password = lerString("Introduza a palavra pass: ");
@@ -325,6 +385,12 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Interpretador da opção registar
+     *
+     * @throws IOException                  Exceção lançada quando algo inesperado ocorre
+     * @throws UserAlreadyExistsException   Exceção lançada quando o Utilizador u«introduzido já existe
+     */
     private void interpreter_register() throws IOException, UserAlreadyExistsException {
         String username = lerString("Introduza o nome de utilizador: ");
         String password = lerString("Introduza a palavra pass: ");
@@ -344,6 +410,9 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Atualiza os contactos do Utilizador
+     */
     private void update_contacts() {
         int localX, localY;
 
@@ -368,6 +437,13 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Lê uma determinada mensagem
+     *
+     * @param message       Mensagem a ser lida
+     * @return              Mensagem lida
+     * @throws IOException  Exceção lançada quando algo inesperado ocorre
+     */
     private String lerString(String message) throws IOException {
         String line;
 
@@ -378,6 +454,14 @@ public class ClientHandler implements Runnable {
         return line;
     }
 
+    /**
+     * Lê um determinado inteiro
+     *
+     * @param max           Representa o valor máximo da opção a ser selecionada
+     * @param message       Mensagem a ser enviada para o Utilizador
+     * @return              Inteiro lido
+     * @throws IOException  Exceção lançada quando algo inesperado ocorre
+     */
     private int lerInt(int max, String message) throws IOException {
         int n;
 
@@ -394,11 +478,25 @@ public class ClientHandler implements Runnable {
         return n;
     }
 
+    /**
+     * Imprime mensagem para o Cliente
+     *
+     * @param message       Mensagem a ser impressa
+     * @throws IOException  Exceção lançada quando algo inesperado ocorre
+     */
     private void printClient(String message) throws IOException {
         out.writeUTF(message);
         out.flush();
     }
 
+    /**
+     * Obtém o menu do Utilizador/Admin
+     *
+     * @param admin     Representa se o Utilizador é admin
+     * @param localX    Coordenada x da localização do Utilizador
+     * @param localY    coordenada y da localização do Utilizador
+     * @return          String que representa o menu do Utilizador/Admin
+     */
     private String getMenu(boolean admin, int localX, int localY) {
         if(admin) return "\n----------------------------------------" +
                 "\n               Menu Admin" +
@@ -426,6 +524,11 @@ public class ClientHandler implements Runnable {
                 "\nEscolha uma opção: ";
     }
 
+    /**
+     * Obtém o menu de Login
+     *
+     * @return  String que representa o menu de Login
+     */
     private String getMenuLogin() {
         return  "\n-------------------" +
                 "\n     Menu Login" +
