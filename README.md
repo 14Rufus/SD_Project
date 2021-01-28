@@ -1,8 +1,9 @@
 # SD_Project
 
-# Nome do Projeto
+# Alarme Covid
 
-Descrição
+In this project, we developed a platform for tracking COVID-19 patient contacts and detecting concentrations of people, in the form of Client/Server in Java.
+The objective of this project was to deepen our knowledge of Distributed Systems. 
 
 # Authors
 
